@@ -16,7 +16,6 @@ build:
 	swiftc $(SOURCES) \
 		-o $(APP_DIR)/Contents/MacOS/$(APP_NAME) \
 		-framework Cocoa \
-		-framework IOKit \
 		-framework ServiceManagement \
 		-target arm64-apple-macosx13.0
 	cp Resources/Info.plist $(APP_DIR)/Contents/

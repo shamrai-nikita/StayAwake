@@ -14,15 +14,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onPreferences: { [weak self] in self?.showPreferences() },
             onQuit: { NSApp.terminate(nil) }
         )
+        statusBarManager?.updateIcon(active: sleepManager.isPreventingSleep)
 
-        if UserDefaults.standard.bool(forKey: "activateOnStart") {
-            sleepManager.enableSleepPrevention()
-            statusBarManager?.updateIcon(active: true)
+        if UserDefaults.standard.bool(forKey: "activateOnStart") && !sleepManager.isPreventingSleep {
+            if sleepManager.enableSleepPrevention() {
+                statusBarManager?.updateIcon(active: true)
+            }
         }
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        sleepManager.disableSleepPrevention()
     }
 
     private func showPreferences() {
