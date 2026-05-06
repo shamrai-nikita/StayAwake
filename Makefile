@@ -8,6 +8,7 @@ SOURCES   = Sources/main.swift \
             Sources/StatusBarManager.swift \
             Sources/LoginItemManager.swift \
             Sources/PreferencesWindowController.swift \
+            Sources/HelperInstaller.swift \
             Sources/Icons.swift
 
 .PHONY: build clean install install-helper uninstall-helper run

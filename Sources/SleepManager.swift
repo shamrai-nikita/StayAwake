@@ -61,8 +61,13 @@ final class SleepManager {
             if self.runPmsetSilent(value: value) {
                 self.isPreventingSleep = (value == 1)
                 completion(self.isPreventingSleep)
-            } else {
-                self.showHelperMissingAlert()
+                return
+            }
+            // sudo -n failed — helper probably skipped at first run. Offer install + retry.
+            DispatchQueue.main.async {
+                if HelperInstaller.installIfNeeded(), self.runPmsetSilent(value: value) {
+                    self.isPreventingSleep = (value == 1)
+                }
                 completion(self.isPreventingSleep)
             }
         }
@@ -108,14 +113,4 @@ final class SleepManager {
         }
     }
 
-    private func showHelperMissingAlert() {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Touch ID helper not installed"
-            alert.informativeText = "Run `make install-helper` in the project directory once to enable passwordless toggle.\n\n(Without it, pmset cannot run as root from the app.)"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
 }
