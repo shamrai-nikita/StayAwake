@@ -17,7 +17,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         self.statusBarManager = statusBarManager
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 240),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -39,41 +39,54 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
         let title = NSTextField(labelWithString: "StayAwake")
         title.font = .boldSystemFont(ofSize: 18)
-        title.frame = NSRect(x: 20, y: 195, width: 360, height: 26)
+        title.frame = NSRect(x: 20, y: 255, width: 380, height: 26)
         v.addSubview(title)
 
         let desc = NSTextField(wrappingLabelWithString: "Click the menu bar icon to prevent your Mac from sleeping\u{2014}even when the lid is closed.")
         desc.font = .systemFont(ofSize: 12)
         desc.textColor = .secondaryLabelColor
-        desc.frame = NSRect(x: 20, y: 150, width: 360, height: 40)
+        desc.frame = NSRect(x: 20, y: 210, width: 380, height: 40)
         v.addSubview(desc)
 
         launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch at login",
                                          target: self,
                                          action: #selector(didToggleLaunchAtLogin))
-        launchAtLoginCheckbox.frame = NSRect(x: 20, y: 118, width: 360, height: 22)
+        launchAtLoginCheckbox.frame = NSRect(x: 20, y: 178, width: 380, height: 22)
         v.addSubview(launchAtLoginCheckbox)
 
         activateOnStartCheckbox = NSButton(checkboxWithTitle: "Activate when app starts",
                                             target: self,
                                             action: #selector(didToggleActivateOnStart))
-        activateOnStartCheckbox.frame = NSRect(x: 20, y: 90, width: 360, height: 22)
+        activateOnStartCheckbox.frame = NSRect(x: 20, y: 150, width: 380, height: 22)
         v.addSubview(activateOnStartCheckbox)
 
         let sep = NSBox()
         sep.boxType = .separator
-        sep.frame = NSRect(x: 20, y: 68, width: 360, height: 1)
+        sep.frame = NSRect(x: 20, y: 128, width: 380, height: 1)
         v.addSubview(sep)
 
         toggleButton = NSButton(title: "Enable", target: self, action: #selector(didTapToggle))
         toggleButton.bezelStyle = .rounded
-        toggleButton.frame = NSRect(x: 20, y: 20, width: 120, height: 32)
+        toggleButton.frame = NSRect(x: 20, y: 84, width: 120, height: 32)
         v.addSubview(toggleButton)
 
         let quitBtn = NSButton(title: "Quit", target: self, action: #selector(didTapQuit))
         quitBtn.bezelStyle = .rounded
-        quitBtn.frame = NSRect(x: 300, y: 20, width: 80, height: 32)
+        quitBtn.frame = NSRect(x: 320, y: 84, width: 80, height: 32)
         v.addSubview(quitBtn)
+
+        let sep2 = NSBox()
+        sep2.boxType = .separator
+        sep2.frame = NSRect(x: 20, y: 64, width: 380, height: 1)
+        v.addSubview(sep2)
+
+        let uninstallButton = NSButton(title: "Uninstall StayAwake\u{2026}",
+                                       target: self,
+                                       action: #selector(didTapUninstall))
+        uninstallButton.bezelStyle = .rounded
+        uninstallButton.frame = NSRect(x: 20, y: 20, width: 200, height: 32)
+        uninstallButton.contentTintColor = .systemRed
+        v.addSubview(uninstallButton)
     }
 
     func refreshState() {
@@ -101,6 +114,47 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func didTapQuit() {
+        NSApp.terminate(nil)
+    }
+
+    @objc private func didTapUninstall() {
+        let appPath = Bundle.main.bundlePath
+        let alert = NSAlert()
+        alert.messageText = "Uninstall StayAwake?"
+        alert.informativeText = """
+        This will:
+
+        • Re-enable system sleep (pmset disablesleep 0)
+        • Remove the Touch ID helper (/etc/sudoers.d/stayawake)
+        • Remove the app: \(appPath)
+        • Disable launch at login
+        • Clear all StayAwake preferences
+
+        You'll be asked for your admin password once. The app will quit immediately afterward.
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Uninstall")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        loginItemManager.setEnabled(false)
+
+        if let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
+
+        let escapedPath = appPath.replacingOccurrences(of: "'", with: "'\\''")
+        let shellCmd = "/usr/bin/pmset -a disablesleep 0; /bin/rm -f /etc/sudoers.d/stayawake; /bin/rm -rf '\(escapedPath)'"
+        let escapedShell = shellCmd
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let appleScriptSource = """
+        do shell script "\(escapedShell)" with prompt "Uninstall StayAwake" with administrator privileges
+        """
+        var err: NSDictionary?
+        NSAppleScript(source: appleScriptSource)?.executeAndReturnError(&err)
+
         NSApp.terminate(nil)
     }
 
