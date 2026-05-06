@@ -6,7 +6,8 @@ SOURCES   = Sources/main.swift \
             Sources/SleepManager.swift \
             Sources/StatusBarManager.swift \
             Sources/LoginItemManager.swift \
-            Sources/PreferencesWindowController.swift
+            Sources/PreferencesWindowController.swift \
+            Sources/Icons.swift
 
 .PHONY: build clean install run
 

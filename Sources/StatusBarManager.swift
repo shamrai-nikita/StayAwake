@@ -25,10 +25,8 @@ final class StatusBarManager {
     }
 
     private func iconImage(active: Bool) -> NSImage? {
-        let name = active ? "cup.and.saucer.fill" : "cup.and.saucer"
-        let img = NSImage(systemSymbolName: name,
-                          accessibilityDescription: active ? "Sleep prevented" : "Sleep allowed")
-        img?.isTemplate = true
+        let img = Icons.burningEye(active: active)
+        img.accessibilityDescription = active ? "Sleep prevented" : "Sleep allowed"
         return img
     }
 
