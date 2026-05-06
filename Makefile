@@ -40,9 +40,12 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 install: build
+	-@pkill -x $(APP_NAME)
 	rm -rf /Applications/$(APP_NAME).app
 	cp -R $(APP_DIR) /Applications/
 	@echo "✓ Installed to /Applications/$(APP_NAME).app"
+	@echo "→ Launching $(APP_NAME)…"
+	open /Applications/$(APP_NAME).app
 
 install-helper:
 	@echo "Installing Touch ID helper (passwordless pmset rule)…"
