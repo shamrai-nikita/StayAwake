@@ -24,8 +24,52 @@ guard let sourceImage = CGImage(pngDataProviderSource: dataProvider,
     exit(1)
 }
 
-let srcW = CGFloat(sourceImage.width)
-let srcH = CGFloat(sourceImage.height)
+// Detect the bounding box of non-white content so the actual artwork fills
+// the icon canvas instead of being lost in surrounding whitespace.
+func findContentBounds(of img: CGImage) -> CGRect {
+    let w = img.width
+    let h = img.height
+    let bytesPerRow = w * 4
+    var pixels = [UInt8](repeating: 0, count: w * h * 4)
+    let space = CGColorSpaceCreateDeviceRGB()
+    let info = CGImageAlphaInfo.premultipliedLast.rawValue
+    guard let ctx = CGContext(data: &pixels, width: w, height: h,
+                              bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                              space: space, bitmapInfo: info) else {
+        return CGRect(x: 0, y: 0, width: w, height: h)
+    }
+    ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+    let whiteThreshold: UInt8 = 240
+    var minX = w, maxX = -1, minY = h, maxY = -1
+    for y in 0..<h {
+        for x in 0..<w {
+            let i = (y * w + x) * 4
+            let r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
+            let nearWhite = r >= whiteThreshold && g >= whiteThreshold && b >= whiteThreshold
+            if !nearWhite {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+    }
+    if maxX < minX || maxY < minY {
+        return CGRect(x: 0, y: 0, width: w, height: h)
+    }
+    return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+}
+
+let bbox = findContentBounds(of: sourceImage)
+guard let cropped = sourceImage.cropping(to: bbox) else {
+    print("Failed to crop content region")
+    exit(1)
+}
+print("Source: \(sourceImage.width)x\(sourceImage.height) → content bbox: \(Int(bbox.width))x\(Int(bbox.height))")
+
+let croppedW = CGFloat(cropped.width)
+let croppedH = CGFloat(cropped.height)
 
 func renderPNG(pixelSize: Int, to url: URL) -> Bool {
     let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -36,25 +80,22 @@ func renderPNG(pixelSize: Int, to url: URL) -> Bool {
                               bitsPerComponent: 8,
                               bytesPerRow: 0,
                               space: colorSpace,
-                              bitmapInfo: bitmapInfo) else {
-        return false
-    }
+                              bitmapInfo: bitmapInfo) else { return false }
 
     let canvas = CGFloat(pixelSize)
-
-    // Fill white
     ctx.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
     ctx.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
 
-    // Center source preserving aspect ratio
-    let s = min(canvas / srcW, canvas / srcH)
-    let drawW = srcW * s
-    let drawH = srcH * s
+    // Fit cropped content into ~92% of the canvas, preserving aspect ratio.
+    let inset: CGFloat = 0.92
+    let fitScale = min(canvas / croppedW, canvas / croppedH) * inset
+    let drawW = croppedW * fitScale
+    let drawH = croppedH * fitScale
     let drawX = (canvas - drawW) / 2
     let drawY = (canvas - drawH) / 2
 
     ctx.interpolationQuality = .high
-    ctx.draw(sourceImage, in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
+    ctx.draw(cropped, in: CGRect(x: drawX, y: drawY, width: drawW, height: drawH))
 
     guard let img = ctx.makeImage(),
           let dest = CGImageDestinationCreateWithURL(url as CFURL,
@@ -87,4 +128,4 @@ for (name, size) in mappings {
         exit(1)
     }
 }
-print("Generated \(mappings.count) icons from \(sourcePath) → \(outDir)")
+print("Generated \(mappings.count) icons → \(outDir)")
