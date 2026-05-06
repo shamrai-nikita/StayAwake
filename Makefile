@@ -4,6 +4,7 @@ APP_DIR      = $(BUILD_DIR)/$(APP_NAME).app
 ICONSET_DIR  = $(BUILD_DIR)/AppIcon.iconset
 ICON_GEN     = $(BUILD_DIR)/icon-gen
 ICNS_PATH    = $(APP_DIR)/Contents/Resources/AppIcon.icns
+ICON_SOURCE  = Resources/AppIcon.png
 SUDOERS_FILE = /etc/sudoers.d/stayawake
 SOURCES      = Sources/main.swift \
                Sources/AppDelegate.swift \
@@ -21,7 +22,7 @@ build:
 	mkdir -p $(APP_DIR)/Contents/Resources
 	mkdir -p $(ICONSET_DIR)
 	swiftc tools/generate_icon.swift -o $(ICON_GEN) -framework Cocoa
-	$(ICON_GEN) $(ICONSET_DIR)
+	$(ICON_GEN) $(ICON_SOURCE) $(ICONSET_DIR)
 	iconutil -c icns $(ICONSET_DIR) -o $(ICNS_PATH)
 	swiftc $(SOURCES) \
 		-o $(APP_DIR)/Contents/MacOS/$(APP_NAME) \
