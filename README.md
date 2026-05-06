@@ -8,7 +8,7 @@
 
 Built so your background agents, training jobs, and long-running tasks don't die when you walk away.
 
-[Install](#install) · [Uninstall](#uninstall) · [How it works](#how-it-works) · [Build from source](#build-from-source)
+[Install](#install) · [Uninstall](#uninstall) · [How it works](#how-it-works)
 
 </div>
 
@@ -73,22 +73,6 @@ make install
 
 That copies `StayAwake.app` to `/Applications`. Open it once to grant Touch ID access — on first run it offers to install a passwordless `pmset` helper at `/etc/sudoers.d/stayawake` so future toggles don't ask for your password.
 
-### Optional: enable Touch ID helper manually
-
-If you'd rather inspect the helper rule before granting it, you can install it from the Makefile:
-
-```bash
-make install-helper
-```
-
-That writes exactly one line to `/etc/sudoers.d/stayawake`:
-
-```
-yourusername ALL=(ALL) NOPASSWD: /usr/bin/pmset
-```
-
-This grants passwordless `sudo` **only** for `/usr/bin/pmset`, nothing else. Remove it any time with `make uninstall-helper`.
-
 ---
 
 ## Usage
@@ -101,7 +85,7 @@ This grants passwordless `sudo` **only** for `/usr/bin/pmset`, nothing else. Rem
   - A big **Enable / Disable** button
   - **Launch at login**
   - **Prevent sleep on launch** — auto-activate every time the app starts
-  - A red **Uninstall StayAwake…** button (see below)
+  - An **Uninstall StayAwake…** button (see below)
 
 ---
 
@@ -138,10 +122,6 @@ defaults delete com.nikitash.stayawake
 | Login item | `SMAppService.mainApp` (macOS 13+) |
 | Bundling | Plain `swiftc` + `iconutil`, packaged into a `.app` directory by a `Makefile` — no Xcode project, no SwiftPM |
 
-### Why `pmset` and not `IOPMAssertionCreateWithName`?
-
-`IOPMAssertionCreateWithName(kIOPMAssertionTypePreventSystemSleep)` — the API used by browsers, video players, and tools like Caffeine — does **not** prevent clamshell sleep. Apple is explicit: when the lid closes, the system goes to sleep regardless of any user-space assertions. The only way to override that is `pmset disablesleep`, which is gated behind `sudo`. StayAwake threads that needle by installing a tightly scoped sudoers rule for `pmset` only, then asking for Touch ID before each toggle.
-
 ### Project layout
 
 ```
@@ -167,19 +147,6 @@ StayAwake/
 
 ---
 
-## Build from source
-
-```bash
-make build       # produces build/StayAwake.app
-make run         # builds and launches from build/
-make install     # builds and copies to /Applications
-make clean       # removes build/
-```
-
-Targets are arm64 macOS 13+. Edit `-target arm64-apple-macosx13.0` in the Makefile if you want to widen support.
-
----
-
 ## Security notes
 
 - The sudoers rule grants passwordless `sudo` **only** for `/usr/bin/pmset`. It cannot be used to escalate to anything else.
@@ -192,7 +159,3 @@ Targets are arm64 macOS 13+. Edit `-target arm64-apple-macosx13.0` in the Makefi
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
----
-
-<sub>Built by [@shamrai-nikita](https://github.com/shamrai-nikita) for keeping AI agents alive overnight.</sub>
