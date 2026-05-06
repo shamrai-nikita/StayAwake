@@ -29,6 +29,7 @@ build:
 		-framework Cocoa \
 		-framework ServiceManagement \
 		-framework LocalAuthentication \
+		-framework IOKit \
 		-target arm64-apple-macosx13.0
 	cp Resources/Info.plist $(APP_DIR)/Contents/
 	cp Resources/MenuBarEye.png $(APP_DIR)/Contents/Resources/

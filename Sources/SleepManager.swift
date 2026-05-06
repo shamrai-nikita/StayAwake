@@ -1,6 +1,7 @@
 import Foundation
 import LocalAuthentication
 import Cocoa
+import IOKit.pwr_mgt
 
 extension Notification.Name {
     static let sleepStateChanged = Notification.Name("StayAwake.sleepStateChanged")
@@ -13,6 +14,7 @@ final class SleepManager {
     private(set) var expiresAt: Date?
 
     private var expiryTimer: DispatchSourceTimer?
+    private var displayAssertionID: IOPMAssertionID?
 
     init() {
         refreshState()
@@ -187,5 +189,28 @@ final class SleepManager {
 
     private func broadcastStateChange() {
         NotificationCenter.default.post(name: .sleepStateChanged, object: self)
+    }
+
+    private func acquireDisplayAssertion() {
+        guard displayAssertionID == nil else { return }
+        var newID: IOPMAssertionID = 0
+        let reason = "StayAwake is preventing system sleep" as CFString
+        let result = IOPMAssertionCreateWithName(
+            kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+            IOPMAssertionLevel(kIOPMAssertionLevelOn),
+            reason,
+            &newID
+        )
+        if result == kIOReturnSuccess {
+            displayAssertionID = newID
+        } else {
+            NSLog("StayAwake: IOPMAssertionCreateWithName failed (0x%x)", result)
+        }
+    }
+
+    private func releaseDisplayAssertion() {
+        guard let id = displayAssertionID else { return }
+        IOPMAssertionRelease(id)
+        displayAssertionID = nil
     }
 }
