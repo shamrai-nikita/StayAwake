@@ -94,9 +94,10 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func didTapToggle() {
-        let nowActive = sleepManager.toggle()
-        statusBarManager?.updateIcon(active: nowActive)
-        toggleButton.title = nowActive ? "Disable" : "Enable"
+        sleepManager.toggle { [weak self] nowActive in
+            self?.statusBarManager?.updateIcon(active: nowActive)
+            self?.toggleButton.title = nowActive ? "Disable" : "Enable"
+        }
     }
 
     @objc private func didTapQuit() {

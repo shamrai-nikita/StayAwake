@@ -17,8 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarManager?.updateIcon(active: sleepManager.isPreventingSleep)
 
         if UserDefaults.standard.bool(forKey: "activateOnStart") && !sleepManager.isPreventingSleep {
-            if sleepManager.enableSleepPrevention() {
-                statusBarManager?.updateIcon(active: true)
+            sleepManager.enable { [weak self] active in
+                self?.statusBarManager?.updateIcon(active: active)
             }
         }
     }

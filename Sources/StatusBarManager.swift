@@ -39,8 +39,9 @@ final class StatusBarManager {
         if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             showContextMenu()
         } else {
-            let nowActive = sleepManager.toggle()
-            updateIcon(active: nowActive)
+            sleepManager.toggle { [weak self] nowActive in
+                self?.updateIcon(active: nowActive)
+            }
         }
     }
 
