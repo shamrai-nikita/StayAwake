@@ -16,15 +16,48 @@ guard let dataProvider = CGDataProvider(filename: sourcePath) else {
     print("Could not open source image at \(sourcePath)")
     exit(1)
 }
-guard let sourceImage = CGImage(pngDataProviderSource: dataProvider,
-                                decode: nil,
-                                shouldInterpolate: true,
-                                intent: .defaultIntent) else {
+guard let rawSource = CGImage(pngDataProviderSource: dataProvider,
+                              decode: nil,
+                              shouldInterpolate: true,
+                              intent: .defaultIntent) else {
     print("Could not decode source image as PNG")
     exit(1)
 }
 
-// Detect the bounding box of non-white content so the actual artwork fills
+// Convert near-white pixels to transparent so the icon's actual shape (e.g.
+// a rounded square on a white background) appears with proper transparency.
+func makeNearWhiteTransparent(of img: CGImage) -> CGImage? {
+    let w = img.width
+    let h = img.height
+    let bytesPerRow = w * 4
+    var pixels = [UInt8](repeating: 0, count: w * h * 4)
+    let space = CGColorSpaceCreateDeviceRGB()
+    let info = CGImageAlphaInfo.premultipliedLast.rawValue
+    guard let ctx = CGContext(data: &pixels, width: w, height: h,
+                              bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                              space: space, bitmapInfo: info) else { return nil }
+    ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+    let threshold: UInt8 = 240
+    var i = 0
+    while i < pixels.count {
+        let r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
+        if r >= threshold && g >= threshold && b >= threshold {
+            pixels[i + 3] = 0
+            pixels[i] = 0
+            pixels[i + 1] = 0
+            pixels[i + 2] = 0
+        }
+        i += 4
+    }
+    return ctx.makeImage()
+}
+
+guard let sourceImage = makeNearWhiteTransparent(of: rawSource) else {
+    print("Failed to convert near-white pixels to transparent")
+    exit(1)
+}
+
+// Detect the bounding box of opaque content so the actual artwork fills
 // the icon canvas instead of being lost in surrounding whitespace.
 func findContentBounds(of img: CGImage) -> CGRect {
     let w = img.width
@@ -40,14 +73,12 @@ func findContentBounds(of img: CGImage) -> CGRect {
     }
     ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
 
-    let whiteThreshold: UInt8 = 240
+    let alphaThreshold: UInt8 = 16
     var minX = w, maxX = -1, minY = h, maxY = -1
     for y in 0..<h {
         for x in 0..<w {
-            let i = (y * w + x) * 4
-            let r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
-            let nearWhite = r >= whiteThreshold && g >= whiteThreshold && b >= whiteThreshold
-            if !nearWhite {
+            let a = pixels[(y * w + x) * 4 + 3]
+            if a > alphaThreshold {
                 if x < minX { minX = x }
                 if x > maxX { maxX = x }
                 if y < minY { minY = y }
@@ -83,11 +114,11 @@ func renderPNG(pixelSize: Int, to url: URL) -> Bool {
                               bitmapInfo: bitmapInfo) else { return false }
 
     let canvas = CGFloat(pixelSize)
-    ctx.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-    ctx.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
+    // Transparent canvas — the source artwork already has near-white pixels
+    // converted to alpha 0, so the rounded shape renders cleanly.
 
-    // Fit cropped content into ~92% of the canvas, preserving aspect ratio.
-    let inset: CGFloat = 0.92
+    // Fit cropped content into the full canvas, preserving aspect ratio.
+    let inset: CGFloat = 1.0
     let fitScale = min(canvas / croppedW, canvas / croppedH) * inset
     let drawW = croppedW * fitScale
     let drawH = croppedH * fitScale

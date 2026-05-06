@@ -31,6 +31,8 @@ build:
 		-framework LocalAuthentication \
 		-target arm64-apple-macosx13.0
 	cp Resources/Info.plist $(APP_DIR)/Contents/
+	cp Resources/MenuBarEye.png $(APP_DIR)/Contents/Resources/
+	cp Resources/MenuBarEyeOutline.png $(APP_DIR)/Contents/Resources/
 	codesign --force --deep --sign - $(APP_DIR)
 	@echo "✓ Build complete: $(APP_DIR)"
 
