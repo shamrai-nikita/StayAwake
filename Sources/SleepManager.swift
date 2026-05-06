@@ -36,7 +36,10 @@ final class SleepManager {
         } catch {
             isPreventingSleep = false
         }
-        if !isPreventingSleep {
+        if isPreventingSleep {
+            acquireDisplayAssertion()
+        } else {
+            releaseDisplayAssertion()
             cancelTimer()
         }
     }
@@ -103,6 +106,7 @@ final class SleepManager {
         // and a Touch ID prompt would just hang if they walked away.
         if runPmsetSilent(value: 0) {
             isPreventingSleep = false
+            releaseDisplayAssertion()
         }
         broadcastStateChange()
     }
@@ -122,6 +126,11 @@ final class SleepManager {
             guard let self = self else { return }
             if self.runPmsetSilent(value: value) {
                 self.isPreventingSleep = (value == 1)
+                if self.isPreventingSleep {
+                    self.acquireDisplayAssertion()
+                } else {
+                    self.releaseDisplayAssertion()
+                }
                 self.broadcastStateChange()
                 completion(self.isPreventingSleep)
                 return
@@ -129,6 +138,11 @@ final class SleepManager {
             DispatchQueue.main.async {
                 if HelperInstaller.installIfNeeded(), self.runPmsetSilent(value: value) {
                     self.isPreventingSleep = (value == 1)
+                    if self.isPreventingSleep {
+                        self.acquireDisplayAssertion()
+                    } else {
+                        self.releaseDisplayAssertion()
+                    }
                     self.broadcastStateChange()
                 }
                 completion(self.isPreventingSleep)
