@@ -61,7 +61,16 @@ Apple's own *Power Mode* and tools like Caffeine **don't actually defeat clamshe
 
 ## Install
 
-### From source (current path)
+### Download (recommended)
+
+Requires macOS 13+ on Apple Silicon. No build tools needed.
+
+1. Download **`StayAwake.zip`** from the [latest release](https://github.com/shamrai-nikita/StayAwake/releases/latest).
+2. Unzip and drag **StayAwake.app** into `/Applications`.
+3. **Right-click → Open** the first time. Gatekeeper warns because the app is locally codesigned (no Apple Developer ID) — choose Open to bypass it once.
+4. On first launch you'll be prompted for your admin password once to install a Touch ID helper. Every toggle after that uses Touch ID.
+
+### From source
 
 Requires macOS 13+ on Apple Silicon and Xcode Command Line Tools (`xcode-select --install`).
 
