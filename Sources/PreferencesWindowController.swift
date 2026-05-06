@@ -8,8 +8,16 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private var statusDot: NSImageView!
     private var statusLabel: NSTextField!
     private var toggleButton: NSButton!
+    private var durationPopup: NSPopUpButton!
+    private var activateForButton: NSButton!
+    private var timerStatusLabel: NSTextField!
+    private var cancelTimerButton: NSButton!
     private var launchAtLoginCheckbox: NSButton!
     private var activateOnStartCheckbox: NSButton!
+    private var requireTouchIDCheckbox: NSButton!
+
+    private static let windowWidth: CGFloat = 460
+    private static let windowHeight: CGFloat = 600
 
     init(sleepManager: SleepManager,
          loginItemManager: LoginItemManager,
@@ -19,7 +27,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         self.statusBarManager = statusBarManager
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
+            contentRect: NSRect(x: 0, y: 0,
+                                width: Self.windowWidth,
+                                height: Self.windowHeight),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -32,45 +42,57 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         buildUI()
         refreshState()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleStateChange),
+            name: .sleepStateChanged,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     private func buildUI() {
         guard let v = window?.contentView else { return }
         let margin: CGFloat = 24
-        let contentWidth: CGFloat = 420 - margin * 2
+        let contentWidth: CGFloat = Self.windowWidth - margin * 2
 
-        // Status row — colored dot + state text
-        statusDot = NSImageView(frame: NSRect(x: margin, y: 342, width: 14, height: 14))
+        // ── Status row ────────────────────────────────────────────────
+        let statusY: CGFloat = 562
+        statusDot = NSImageView(frame: NSRect(x: margin, y: statusY, width: 14, height: 14))
         statusDot.imageScaling = .scaleProportionallyUpOrDown
         statusDot.image = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: nil)
         v.addSubview(statusDot)
 
         statusLabel = NSTextField(labelWithString: "")
         statusLabel.font = .systemFont(ofSize: 15, weight: .semibold)
-        statusLabel.frame = NSRect(x: margin + 22, y: 338, width: contentWidth - 22, height: 22)
+        statusLabel.frame = NSRect(x: margin + 22, y: statusY - 4, width: contentWidth - 22, height: 22)
         v.addSubview(statusLabel)
 
-        // Primary toggle button — default style (accent-colored)
+        // ── Primary toggle button ─────────────────────────────────────
         let buttonWidth: CGFloat = 200
-        toggleButton = NSButton(title: "Enable", target: self, action: #selector(didTapToggle))
+        toggleButton = NSButton(title: "Activate", target: self, action: #selector(didTapToggle))
         toggleButton.bezelStyle = .rounded
         toggleButton.keyEquivalent = "\r"
-        toggleButton.frame = NSRect(x: (420 - buttonWidth) / 2, y: 284, width: buttonWidth, height: 32)
+        toggleButton.frame = NSRect(x: (Self.windowWidth - buttonWidth) / 2,
+                                    y: 504, width: buttonWidth, height: 32)
         v.addSubview(toggleButton)
 
-        // Helper tip
         let tip = NSTextField(labelWithString: "Or click the menu bar icon to toggle anytime.")
         tip.font = .systemFont(ofSize: 11)
         tip.textColor = .secondaryLabelColor
         tip.alignment = .center
-        tip.frame = NSRect(x: margin, y: 256, width: contentWidth, height: 16)
+        tip.frame = NSRect(x: margin, y: 480, width: contentWidth, height: 16)
         v.addSubview(tip)
 
-        // Info banner — explains lid-closed behavior
+        // ── Lid-closed banner ─────────────────────────────────────────
         let bannerHeight: CGFloat = 56
-        let bannerY: CGFloat = 180
+        let bannerY: CGFloat = 408
         let banner = NSView(frame: NSRect(x: margin, y: bannerY, width: contentWidth, height: bannerHeight))
         banner.wantsLayer = true
         banner.layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.12).cgColor
@@ -90,32 +112,109 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         bannerText.frame = NSRect(x: 38, y: 6, width: contentWidth - 50, height: bannerHeight - 12)
         banner.addSubview(bannerText)
 
-        // Separator
-        let sep = NSBox()
-        sep.boxType = .separator
-        sep.frame = NSRect(x: margin, y: 158, width: contentWidth, height: 1)
-        v.addSubview(sep)
+        // ── TIMER section ─────────────────────────────────────────────
+        let timerSep = NSBox()
+        timerSep.boxType = .separator
+        timerSep.frame = NSRect(x: margin, y: 388, width: contentWidth, height: 1)
+        v.addSubview(timerSep)
 
-        // Section header
-        let section = NSTextField(labelWithString: "STARTUP")
-        section.font = .systemFont(ofSize: 11, weight: .semibold)
-        section.textColor = .secondaryLabelColor
-        section.frame = NSRect(x: margin, y: 130, width: contentWidth, height: 14)
-        v.addSubview(section)
+        let timerHeader = NSTextField(labelWithString: "TIMER")
+        timerHeader.font = .systemFont(ofSize: 11, weight: .semibold)
+        timerHeader.textColor = .secondaryLabelColor
+        timerHeader.frame = NSRect(x: margin, y: 360, width: contentWidth, height: 14)
+        v.addSubview(timerHeader)
+
+        let durationLabel = NSTextField(labelWithString: "Activate for:")
+        durationLabel.font = .systemFont(ofSize: 12)
+        durationLabel.frame = NSRect(x: margin, y: 326, width: 90, height: 22)
+        v.addSubview(durationLabel)
+
+        durationPopup = NSPopUpButton(frame: NSRect(x: margin + 96, y: 322, width: 160, height: 26))
+        for preset in DurationPreset.presets {
+            durationPopup.addItem(withTitle: preset.title)
+            durationPopup.lastItem?.representedObject = preset.seconds
+        }
+        durationPopup.menu?.addItem(.separator())
+        let indefinite = NSMenuItem(title: "Indefinitely", action: nil, keyEquivalent: "")
+        indefinite.representedObject = NSNull()
+        durationPopup.menu?.addItem(indefinite)
+        // Default selection: 30 minutes
+        durationPopup.selectItem(at: 2)
+        v.addSubview(durationPopup)
+
+        activateForButton = NSButton(title: "Activate",
+                                     target: self,
+                                     action: #selector(didTapActivateFor))
+        activateForButton.bezelStyle = .rounded
+        activateForButton.frame = NSRect(x: margin + 96 + 168, y: 322, width: 90, height: 26)
+        v.addSubview(activateForButton)
+
+        timerStatusLabel = NSTextField(labelWithString: "")
+        timerStatusLabel.font = .systemFont(ofSize: 11)
+        timerStatusLabel.textColor = .secondaryLabelColor
+        timerStatusLabel.frame = NSRect(x: margin, y: 294, width: contentWidth - 110, height: 18)
+        v.addSubview(timerStatusLabel)
+
+        cancelTimerButton = NSButton(title: "Cancel timer",
+                                     target: self,
+                                     action: #selector(didCancelTimer))
+        cancelTimerButton.bezelStyle = .recessed
+        cancelTimerButton.controlSize = .small
+        cancelTimerButton.frame = NSRect(x: Self.windowWidth - margin - 100,
+                                          y: 292, width: 100, height: 22)
+        cancelTimerButton.isHidden = true
+        v.addSubview(cancelTimerButton)
+
+        // ── STARTUP section ───────────────────────────────────────────
+        let startupSep = NSBox()
+        startupSep.boxType = .separator
+        startupSep.frame = NSRect(x: margin, y: 270, width: contentWidth, height: 1)
+        v.addSubview(startupSep)
+
+        let startupHeader = NSTextField(labelWithString: "STARTUP")
+        startupHeader.font = .systemFont(ofSize: 11, weight: .semibold)
+        startupHeader.textColor = .secondaryLabelColor
+        startupHeader.frame = NSRect(x: margin, y: 242, width: contentWidth, height: 14)
+        v.addSubview(startupHeader)
 
         launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch at login",
                                          target: self,
                                          action: #selector(didToggleLaunchAtLogin))
-        launchAtLoginCheckbox.frame = NSRect(x: margin, y: 100, width: contentWidth, height: 22)
+        launchAtLoginCheckbox.frame = NSRect(x: margin, y: 212, width: contentWidth, height: 22)
         v.addSubview(launchAtLoginCheckbox)
 
         activateOnStartCheckbox = NSButton(checkboxWithTitle: "Prevent sleep on launch",
                                             target: self,
                                             action: #selector(didToggleActivateOnStart))
-        activateOnStartCheckbox.frame = NSRect(x: margin, y: 72, width: contentWidth, height: 22)
+        activateOnStartCheckbox.frame = NSRect(x: margin, y: 184, width: contentWidth, height: 22)
         v.addSubview(activateOnStartCheckbox)
 
-        // Uninstall — subtle, bottom-right
+        // ── SECURITY section ──────────────────────────────────────────
+        let securitySep = NSBox()
+        securitySep.boxType = .separator
+        securitySep.frame = NSRect(x: margin, y: 162, width: contentWidth, height: 1)
+        v.addSubview(securitySep)
+
+        let securityHeader = NSTextField(labelWithString: "SECURITY")
+        securityHeader.font = .systemFont(ofSize: 11, weight: .semibold)
+        securityHeader.textColor = .secondaryLabelColor
+        securityHeader.frame = NSRect(x: margin, y: 134, width: contentWidth, height: 14)
+        v.addSubview(securityHeader)
+
+        requireTouchIDCheckbox = NSButton(checkboxWithTitle: "Require Touch ID to toggle",
+                                          target: self,
+                                          action: #selector(didToggleRequireTouchID))
+        requireTouchIDCheckbox.frame = NSRect(x: margin, y: 104, width: contentWidth, height: 22)
+        v.addSubview(requireTouchIDCheckbox)
+
+        let securityHint = NSTextField(wrappingLabelWithString: "When off, toggling sleep prevention happens silently. Auto-disable on timer expiry never prompts.")
+        securityHint.font = .systemFont(ofSize: 11)
+        securityHint.textColor = .tertiaryLabelColor
+        securityHint.maximumNumberOfLines = 2
+        securityHint.frame = NSRect(x: margin + 22, y: 70, width: contentWidth - 22, height: 32)
+        v.addSubview(securityHint)
+
+        // ── Uninstall ─────────────────────────────────────────────────
         let uninstallWidth: CGFloat = 170
         let uninstallButton = NSButton(title: "Uninstall StayAwake\u{2026}",
                                        target: self,
@@ -123,7 +222,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         uninstallButton.bezelStyle = .recessed
         uninstallButton.controlSize = .small
         uninstallButton.contentTintColor = .systemRed
-        uninstallButton.frame = NSRect(x: 420 - margin - uninstallWidth,
+        uninstallButton.frame = NSRect(x: Self.windowWidth - margin - uninstallWidth,
                                         y: 22, width: uninstallWidth, height: 22)
         v.addSubview(uninstallButton)
     }
@@ -131,13 +230,30 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     func refreshState() {
         launchAtLoginCheckbox.state = loginItemManager.isEnabled ? .on : .off
         activateOnStartCheckbox.state = UserDefaults.standard.bool(forKey: "activateOnStart") ? .on : .off
+        requireTouchIDCheckbox.state = UserDefaults.standard.bool(forKey: SleepManager.requireTouchIDKey) ? .on : .off
         applyStatus(active: sleepManager.isPreventingSleep)
     }
 
     private func applyStatus(active: Bool) {
-        toggleButton.title = active ? "Disable" : "Enable"
+        toggleButton.title = active ? "Disable" : "Activate"
         statusLabel.stringValue = active ? "Sleep prevented" : "Sleep allowed"
         statusDot.contentTintColor = active ? .systemGreen : .tertiaryLabelColor
+
+        if let expiresAt = sleepManager.expiresAt {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            timerStatusLabel.stringValue = "Active until \(formatter.string(from: expiresAt))"
+            cancelTimerButton.isHidden = false
+        } else {
+            timerStatusLabel.stringValue = active ? "Active indefinitely." : ""
+            cancelTimerButton.isHidden = true
+        }
+    }
+
+    @objc private func handleStateChange() {
+        DispatchQueue.main.async { [weak self] in
+            self?.applyStatus(active: self?.sleepManager.isPreventingSleep ?? false)
+        }
     }
 
     @objc private func didToggleLaunchAtLogin() {
@@ -151,11 +267,36 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         UserDefaults.standard.set(activateOnStartCheckbox.state == .on, forKey: "activateOnStart")
     }
 
+    @objc private func didToggleRequireTouchID() {
+        UserDefaults.standard.set(requireTouchIDCheckbox.state == .on, forKey: SleepManager.requireTouchIDKey)
+    }
+
     @objc private func didTapToggle() {
         sleepManager.toggle { [weak self] nowActive in
             self?.statusBarManager?.updateIcon(active: nowActive)
             self?.applyStatus(active: nowActive)
         }
+    }
+
+    @objc private func didTapActivateFor() {
+        guard let item = durationPopup.selectedItem else { return }
+        if let seconds = item.representedObject as? TimeInterval {
+            sleepManager.enableForDuration(seconds) { [weak self] active in
+                self?.statusBarManager?.updateIcon(active: active)
+                self?.applyStatus(active: active)
+            }
+        } else {
+            // Indefinite
+            sleepManager.enable { [weak self] active in
+                self?.statusBarManager?.updateIcon(active: active)
+                self?.applyStatus(active: active)
+            }
+        }
+    }
+
+    @objc private func didCancelTimer() {
+        sleepManager.cancelTimer()
+        applyStatus(active: sleepManager.isPreventingSleep)
     }
 
     @objc private func didTapUninstall() {

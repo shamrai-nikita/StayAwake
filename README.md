@@ -28,7 +28,8 @@ Apple's own *Power Mode* and tools like Caffeine **don't actually defeat clamshe
 
 - 🔥 **Closed-lid mode that actually works** — uses `pmset disablesleep`, the only macOS API that defeats clamshell sleep
 - 🖥️ **Display stays on too** — useful if you VNC/Screen-Share into the machine while away
-- 👆 **Touch ID instead of typing your password** every toggle — installs a tightly scoped passwordless `sudoers` rule the first time
+- ⏱️ **Caffeine-style timer** — activate for 5 / 15 / 30 min, 1 / 2 / 5 h, or indefinitely; auto-disables silently when it expires
+- 👆 **Optional Touch ID gate** — off by default for a friction-free toggle; turn it on if you want a confirmation prompt before each manual change
 - 🍎 **Menu bar only** — no Dock icon, no window unless you want one
 - 🚀 **Launch at login** + optional auto-activate on launch
 - 🧹 **Clean uninstall** — one button removes the app, the helper rule, and all preferences
@@ -54,6 +55,12 @@ Apple's own *Power Mode* and tools like Caffeine **don't actually defeat clamshe
 </table>
 
 <p align="center">
+  <img src="docs/images/menu-context.png" alt="Right-click menu with Activate-for submenu" width="420" />
+  <br/>
+  <sub>Right-click → <b>Activate for</b> sets a timer. The icon auto-disables silently when it expires.</sub>
+</p>
+
+<p align="center">
   <img src="docs/images/preferences.png" alt="Preferences window" width="520" />
 </p>
 
@@ -71,7 +78,7 @@ cd StayAwake
 make install
 ```
 
-That copies `StayAwake.app` to `/Applications`. Open it once to grant Touch ID access — on first run it offers to install a passwordless `pmset` helper at `/etc/sudoers.d/stayawake` so future toggles don't ask for your password.
+That copies `StayAwake.app` to `/Applications` and launches it. On first run it offers to install a passwordless `pmset` helper at `/etc/sudoers.d/stayawake` — that one-time admin prompt is the only password you'll ever type.
 
 ---
 
@@ -80,12 +87,17 @@ That copies `StayAwake.app` to `/Applications`. Open it once to grant Touch ID a
 - **Left-click** the menu bar icon → toggle sleep prevention on/off
   - 🟧 colorful eye = sleep prevented
   - ⚪ outline eye = sleep allowed
-- **Right-click** the menu bar icon → Preferences / Quit
+- **Right-click** the menu bar icon → contextual menu:
+  - **Activate** / **Disable** — indefinite toggle
+  - **Activate for ▸** — 5 / 15 / 30 min, 1 / 2 / 5 h, or Indefinitely
+  - **Active until …** + **Cancel timer** — shown only while a timer is running
+  - Preferences… / Quit
 - The Preferences window has:
-  - A big **Enable / Disable** button
-  - **Launch at login**
-  - **Prevent sleep on launch** — auto-activate every time the app starts
-  - An **Uninstall StayAwake…** button (see below)
+  - A big **Activate / Disable** button
+  - **Timer** — pick a duration and click **Activate**; the active-until time + a **Cancel timer** button appear while one is running
+  - **Startup** — Launch at login, Prevent sleep on launch
+  - **Security** — *Require Touch ID to toggle* (off by default; timer expiry is always silent)
+  - **Uninstall StayAwake…** (see below)
 
 ---
 
@@ -117,7 +129,8 @@ defaults delete com.nikitash.stayawake
 | Layer | What it uses |
 |---|---|
 | Sleep prevention | `pmset -a disablesleep 1/0` invoked via `sudo` (no password thanks to the helper rule) |
-| Auth gate | `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` — Touch ID required for every toggle |
+| Auth gate | Off by default. When enabled, `LAContext.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)` — Touch ID required for manual toggles. Timer auto-expiry never prompts. |
+| Timer | `DispatchSourceTimer` on the main queue; on fire, runs the silent `pmset` path and broadcasts a `NotificationCenter` state change to the menu and Preferences UI. |
 | Menu bar | `NSStatusItem` with custom `NSImage` rendered from PNG assets (chroma-keyed black background → transparent) |
 | Login item | `SMAppService.mainApp` (macOS 13+) |
 | Bundling | Plain `swiftc` + `iconutil`, packaged into a `.app` directory by a `Makefile` — no Xcode project, no SwiftPM |
@@ -150,7 +163,8 @@ StayAwake/
 ## Security notes
 
 - The sudoers rule grants passwordless `sudo` **only** for `/usr/bin/pmset`. It cannot be used to escalate to anything else.
-- Every toggle still requires Touch ID, so even with passwordless sudo a passerby can't flip your sleep settings.
+- Manual toggles are silent by default. Anyone at your unlocked Mac can flip the state — if that matters to you, turn on **Require Touch ID** in Preferences → Security and you'll be prompted for biometrics on every manual change.
+- Timer expiry is always silent (a Touch ID prompt would just hang if you've walked away from the keyboard). The duration you set is the consent.
 - The app is locally codesigned (`codesign --sign -`) — Gatekeeper will warn the first time you open it. Right-click → Open to allow.
 - No telemetry, no network calls, no analytics. The app never touches the network.
 
